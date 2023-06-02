@@ -1,0 +1,229 @@
+<html>
+
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@0.24.0/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@2.0.2/build/global/luxon.min.js"></script>
+    <script>
+        const showErrorModal = (text, title = "错误") => {
+            $("#global-error-header").text(title)
+            $("#global-error-text").text(text);
+            $("#global-error-model").modal("show");
+        };
+        $(document).ready(() => {
+            axios.interceptors.response.use(resp => {
+                return resp;
+            }, err => {
+                let response = err.response;
+                showErrorModal(response.data, response.status + " " + response.statusText)
+            });
+
+            // let outTime = luxon.DateTime.now().plus({ hours: -1 });
+            // let plus8 = outTime.plus({ hours: 8 });
+            // const toSec = (v) => {
+            //     let s = luxon.DateTime.fromISO(v);
+            //     return parseInt(s.toSeconds());
+            // };
+            new Vue({
+                el: "#main",
+                data: {
+                    password: "",
+                    alreadyLogin: false,
+                    userList: [],
+                    loaded: false,
+                    loading: false,
+                    records: null,
+                    currentUsername: "",
+                    currentUid: -1
+                },
+                watch: {
+                    alreadyLogin(newVal) {
+                        if (newVal == true) {
+                            this.loadUserlist();
+                        }
+                    }
+                },
+                async mounted() {
+                    this.alreadyLogin = await this.loginCheck();
+                },
+                methods: {
+                    toTimeString(timestamp) {
+                        return luxon.DateTime.fromSeconds(timestamp).toJSDate().toLocaleString();
+
+                    },
+                    async loginCheck() {
+                        this.loading = true;
+                        try {
+                            let resp = (await axios.post("/api/admin/query_login_state")).data;
+                            return resp.ok;
+                        } catch (e) {
+                            throw e;
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+                    async login() {
+                        this.loading = true;
+                        try {
+                            let resp = (await axios.post("/api/admin/login", { password: this.password })).data;
+                            if (resp.ok) {
+                                this.alreadyLogin = true;
+                            } else {
+                                showErrorModal(resp.message);
+                            }
+                        } catch (e) {
+                            throw e;
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+                    async loadUserlist() {
+                        this.loading = true;
+                        try {
+                            let resp = (await axios.post("/api/admin/list_users")).data;
+                            if (resp.ok) {
+                                this.userList = resp.data;
+                            } else {
+                                showErrorModal(resp.message);
+                            }
+                        } catch (e) {
+                            throw e;
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+                    async loadRecord(uid, username) {
+                        this.loading = true;
+                        try {
+                            let resp = (await axios.post("/api/admin/query_record", { uid: uid })).data;
+                            if (resp.ok) {
+                                this.records = resp.data;
+                                this.currentUsername = username;
+                                this.currentUid = uid;
+                            } else {
+                                showErrorModal(resp.message);
+                            }
+                        } catch (e) {
+                            throw e;
+                        } finally {
+                            this.loading = false;
+                        }
+                    }
+                }
+            })
+        });
+    </script>
+    <title>管理员操作</title>
+</head>
+
+<body style="background-color: rgb(236, 233, 233)">
+    <div class="ui main container" style="margin-top:70px;margin-bottom:70px">
+        <div style="top: 10%" id="main">
+            <div class="ui inverted active dimmer" v-if="loading">
+                <div class="ui text loader">
+                    正在加载..
+                </div>
+            </div>
+            <div class="ui left aligned container" style="width: 100%">
+                <div class="ui header">
+                    <h1>管理员操作</h1>
+                </div>
+                <div class="ui segment stacked" v-if="!alreadyLogin">
+                    <div class="ui form" id="main-form">
+                        <div class="field">
+                            <label>密码:</label>
+                            <input type="password" id="string" v-model="password" v-on:keyup.enter="login">
+                        </div>
+                        <div class="ui submit button" id="submit-button" v-on:click="login">登录</div>
+                    </div>
+                </div>
+                <div v-else>
+                    <div class="ui two column grid">
+                        <div class="ui ten wide column">
+                            <div class="ui segment stacked">
+                                <table class="ui celled table">
+                                    <thead>
+                                        <tr>
+                                            <th>用户ID</th>
+                                            <th>用户名</th>
+                                            <th>实名</th>
+                                            <th>电话</th>
+                                            <th>身份证</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="item in userList">
+                                            <td>{{item.uid}}</td>
+                                            <td>{{item.username}}</td>
+                                            <td>{{item.realname}}</td>
+                                            <td>{{item.phone}}</td>
+                                            <td>{{item.ID}}</td>
+                                            
+                                            <td>
+                                                <button class="ui tiny green button"
+                                                    v-on:click="loadRecord(item.uid,item.username)">查询记录</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="ui six wide column">
+                            <div class="ui segment stacked">
+                                <div v-if="records===null">
+                                    当前没有可显示的数据..
+                                </div>
+                                <div v-else>
+                                    <div class="ui header">
+                                        <h3>{{currentUid}}: {{currentUsername}} 的记录数据</h3>
+                                    </div>
+                                    <table class="ui celled table">
+                                        <thead>
+                                            <tr>
+                                                <th>时间</th>
+                                                <th>体温</th>
+                                                <th>地点</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="item in records">
+                                                <td>{{toTimeString(item.timestamp)}}</td>
+                                                <td>{{item.temperature}}</td>
+                                                <td>{{item.location}}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ui tiny modal" id="global-error-model">
+        <div class="ui header">
+            发生错误
+        </div>
+        <div class="content">
+            <div class="ui error message">
+                <div class="ui header">
+                    <h3 id="global-error-header"></h3>
+                </div>
+                <p id="global-error-text"></p>
+            </div>
+        </div>
+        <div class="actions">
+            <a class="ui blue approve button" href="/">返回主页</a>
+            <div class="ui green approve button">关闭</div>
+        </div>
+    </div>
+</body>
+
+</html>

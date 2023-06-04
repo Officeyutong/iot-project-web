@@ -3,209 +3,316 @@
 <head>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script>
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios@0.24.0/dist/axios.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon@2.0.2/build/global/luxon.min.js"></script>
-    <script>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+            "three": "https://unpkg.com/three@0.153.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.153.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        #compass {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            background: url('compass.png');
+            background-size: cover;
+            filter: invert(100%);
+        }
+
+        #needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 100px;
+            background-color: red;
+            transform-origin: top;
+            transition: transform 0.5s ease-out;
+            filter: invert(100%);
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+
+
         const showErrorModal = (text, title = "错误") => {
             $("#global-error-header").text(title)
             $("#global-error-text").text(text);
             $("#global-error-model").modal("show");
         };
         $(document).ready(() => {
+            let sensorData = {
+                "acceleration": {
+                    "x": 0.02871387079358101, "y": -0.05712864175438881, "z": 9.720542907714844
+                },
+                "gyroscope": { "x": 0.0017478630755504126, "y": 0.0014570997802948113, "z": 0.0023664222578809128 },
+                "orientation": { "qx": -0.002927620429545641, "qy": -0.0008045240538194776, "qz": -0.698952317237854, "qw": 0.7151618599891663, "pitch": 0.0030628021340817213, "roll": -0.005243313033133745, "yaw": 1.5478800535202026, "timestamp": 1685871179733.0 },
+                "geolocation": {
+                    "coords": {
+                        "latitude": 30.59284, "longitude": 114.27729, "accuracy": 32.0, "altitude": 0.0, "heading": 0.0, "speed": 0.0
+                    },
+                    "timestamp": 1685871176683
+                }
+            };
             axios.interceptors.response.use(resp => {
                 return resp;
             }, err => {
                 let response = err.response;
                 showErrorModal(response.data, response.status + " " + response.statusText)
             });
-
-            // let outTime = luxon.DateTime.now().plus({ hours: -1 });
-            // let plus8 = outTime.plus({ hours: 8 });
-            // const toSec = (v) => {
-            //     let s = luxon.DateTime.fromISO(v);
-            //     return parseInt(s.toSeconds());
-            // };
-            new Vue({
-                el: "#main",
-                data: {
-                    password: "",
-                    alreadyLogin: false,
-                    userList: [],
-                    loaded: false,
-                    loading: false,
-                    records: null,
-                    currentUsername: "",
-                    currentUid: -1
-                },
-                watch: {
-                    alreadyLogin(newVal) {
-                        if (newVal == true) {
-                            this.loadUserlist();
-                        }
-                    }
-                },
-                async mounted() {
-                    this.alreadyLogin = await this.loginCheck();
-                },
-                methods: {
-                    toTimeString(timestamp) {
-                        return luxon.DateTime.fromSeconds(timestamp).toJSDate().toLocaleString();
-
-                    },
-                    async loginCheck() {
-                        this.loading = true;
-                        try {
-                            let resp = (await axios.post("/api/admin/query_login_state")).data;
-                            return resp.ok;
-                        } catch (e) {
-                            throw e;
-                        } finally {
-                            this.loading = false;
-                        }
-                    },
-                    async login() {
-                        this.loading = true;
-                        try {
-                            let resp = (await axios.post("/api/admin/login", { password: this.password })).data;
-                            if (resp.ok) {
-                                this.alreadyLogin = true;
-                            } else {
-                                showErrorModal(resp.message);
-                            }
-                        } catch (e) {
-                            throw e;
-                        } finally {
-                            this.loading = false;
-                        }
-                    },
-                    async loadUserlist() {
-                        this.loading = true;
-                        try {
-                            let resp = (await axios.post("/api/admin/list_users")).data;
-                            if (resp.ok) {
-                                this.userList = resp.data;
-                            } else {
-                                showErrorModal(resp.message);
-                            }
-                        } catch (e) {
-                            throw e;
-                        } finally {
-                            this.loading = false;
-                        }
-                    },
-                    async loadRecord(uid, username) {
-                        this.loading = true;
-                        try {
-                            let resp = (await axios.post("/api/admin/query_record", { uid: uid })).data;
-                            if (resp.ok) {
-                                this.records = resp.data;
-                                this.currentUsername = username;
-                                this.currentUid = uid;
-                            } else {
-                                showErrorModal(resp.message);
-                            }
-                        } catch (e) {
-                            throw e;
-                        } finally {
-                            this.loading = false;
-                        }
-                    }
+            const map = L.map('map').setView([0, 0], 13);
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(map);
+            const pos = [sensorData.geolocation.coords.latitude, sensorData.geolocation.coords.longitude];
+            const marker = L.marker(pos).addTo(map);
+            map.setView(pos, 13);
+            const updateText = (prev, sensorData) => {
+                $("#acc-x").text(sensorData.acceleration.x.toFixed(3));
+                $("#acc-y").text(sensorData.acceleration.y.toFixed(3));
+                $("#acc-z").text(sensorData.acceleration.z.toFixed(3));
+                $("#rotation-x").text((sensorData.orientation.pitch / Math.PI * 180).toFixed(3));
+                $("#rotation-y").text((sensorData.orientation.yaw / Math.PI * 180).toFixed(3));
+                $("#rotation-z").text((sensorData.orientation.roll / Math.PI * 180).toFixed(3));
+                if (sensorData.geolocation.timestamp !== prev.geolocation.timestamp && sensorData.geolocation.timestamp !== 0) {
+                    const pos = [sensorData.geolocation.coords.latitude, sensorData.geolocation.coords.longitude];
+                    marker.setLatLng(pos);
+                    map.setView(pos, 13);
+                    $("#lon").text(sensorData.geolocation.coords.longitude.toFixed(3));
+                    $("#lat").text(sensorData.geolocation.coords.latitude.toFixed(3));
+                    $("#alt").text(sensorData.geolocation.coords.altitude.toFixed(3));
+                    $("#spd").text(sensorData.geolocation.coords.speed.toFixed(3));
                 }
-            })
+                const heading = sensorData.compass.heading;
+                $("#heading").text(heading.toFixed(3));
+                $("#needle").css("transform", `rotate(-${heading}deg)`);
+            };
+            (async () => {
+                try {
+                    while (true) {
+
+                        const resp = await axios.get("/api/get_data");
+                        updateText(sensorData, resp.data);
+                        sensorData = resp.data;
+
+                        await new Promise((resolve, reject) => {
+                            setTimeout(() => {
+                                resolve();
+                            }, 100);
+                        });
+
+                    }
+                } catch (e) {
+                    console.log(e);
+                    showErrorModal(String(e));
+                }
+            })();
+            const handle3js = () => {
+                const holder = document.getElementById("threejs-container");
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+                camera.position.x = -1.5;
+                camera.position.y = 1;
+                camera.position.z = -2;
+
+                const renderer = new THREE.WebGLRenderer();
+
+                renderer.setSize(600, 500);
+                renderer.setClearColor(0xfafafa);
+                holder.appendChild(renderer.domElement);
+
+                const dir = new THREE.Vector3(1, 2, 0);
+                dir.normalize();
+
+                const origin = new THREE.Vector3(0, 0, 0);
+
+                const arrowHelper = new THREE.ArrowHelper(dir, origin, 1.5, 0xff00ff);
+                scene.add(arrowHelper);
+
+                const arrowX = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), origin, 1, 0xff0000);
+                const arrowY = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), origin, 1, 0x00ff00);
+                const arrowZ = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), origin, 1, 0x0000ff);
+                scene.add(arrowX);
+                scene.add(arrowY);
+                scene.add(arrowZ);
+
+                const gridHelper = new THREE.GridHelper(3, 10, 0x666699, 0x6699ff);
+                scene.add(gridHelper);
+                const controls = new OrbitControls(camera, renderer.domElement);
+
+                const cubeGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.2);
+                const cubeMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+                const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                scene.add(cube);
+
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    controls.update();
+                    const dir = new THREE.Vector3(sensorData.acceleration.x, sensorData.acceleration.z, sensorData.acceleration.y);
+                    if (dir.length() >= 0.5) {
+                        arrowHelper.setDirection(dir);
+
+                    }
+                    cube.rotation.set(sensorData.orientation.pitch, -sensorData.orientation.yaw, sensorData.orientation.roll, "XZY");
+                    dir.normalize();
+                    renderer.render(scene, camera);
+                }
+                animate();
+            };
+            handle3js();
         });
     </script>
-    <title>管理员操作</title>
+    <title>物联网展示</title>
 </head>
 
 <body style="background-color: rgb(236, 233, 233)">
+
     <div class="ui main container" style="margin-top:70px;margin-bottom:70px">
         <div style="top: 10%" id="main">
-            <div class="ui inverted active dimmer" v-if="loading">
-                <div class="ui text loader">
-                    正在加载..
-                </div>
+            <div class="ui header">
+                <h1>物联网上机</h1>
             </div>
-            <div class="ui left aligned container" style="width: 100%">
-                <div class="ui header">
-                    <h1>管理员操作</h1>
-                </div>
-                <div class="ui segment stacked" v-if="!alreadyLogin">
-                    <div class="ui form" id="main-form">
-                        <div class="field">
-                            <label>密码:</label>
-                            <input type="password" id="string" v-model="password" v-on:keyup.enter="login">
+            <div class="ui segment stacked">
+                <div class="ui three column grid">
+                    <div class="ui ten wide column">
+                        <div class="ui header">
+                            <h3>陀螺仪及加速度</h3>
                         </div>
-                        <div class="ui submit button" id="submit-button" v-on:click="login">登录</div>
-                    </div>
-                </div>
-                <div v-else>
-                    <div class="ui two column grid">
-                        <div class="ui ten wide column">
-                            <div class="ui segment stacked">
-                                <table class="ui celled table">
-                                    <thead>
-                                        <tr>
-                                            <th>用户ID</th>
-                                            <th>用户名</th>
-                                            <th>实名</th>
-                                            <th>电话</th>
-                                            <th>身份证</th>
-                                            <th>操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="item in userList">
-                                            <td>{{item.uid}}</td>
-                                            <td>{{item.username}}</td>
-                                            <td>{{item.realname}}</td>
-                                            <td>{{item.phone}}</td>
-                                            <td>{{item.ID}}</td>
-                                            
-                                            <td>
-                                                <button class="ui tiny green button"
-                                                    v-on:click="loadRecord(item.uid,item.username)">查询记录</button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                        <div class="ui stacked segment">
+                            <div id="threejs-container"></div>
+                            <table class="ui celled table">
+                                <thead>
+                                    <tr>
+                                        <th>数值</th>
+                                        <th>X方向 (m/s^2)</th>
+                                        <th>Y方向 (m/s^2)</th>
+                                        <th>Z方向 (m/s^2)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>加速度</td>
+                                        <td id="acc-x"></td>
+                                        <td id="acc-y"></td>
+                                        <td id="acc-z"></td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                            <table class="ui celled table">
+                                <thead>
+                                    <tr>
+                                        <th>数值</th>
+                                        <th>俯仰/X(度)</th>
+                                        <th>偏航/Y(度)</th>
+                                        <th>翻滚/Z(度)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>旋转</td>
+                                        <td id="rotation-x"></td>
+                                        <td id="rotation-y"></td>
+                                        <td id="rotation-z"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="ui message">
+                                <div class="ui header">
+                                    注意
+                                </div>
+                                <p>屏幕上红色箭头表示X轴正方向，绿色箭头表示Y轴正方向，蓝色箭头表示Z轴正方向</p>
+                                <p>紫色箭头表示加速度方向。</p>
                             </div>
                         </div>
-                        <div class="ui six wide column">
-                            <div class="ui segment stacked">
-                                <div v-if="records===null">
-                                    当前没有可显示的数据..
+                    </div>
+
+                    <div class="ui six wide column">
+                        <div class="ui one column grid">
+                            <div class="ui column">
+                                <div class="ui header">
+                                    <h3>指南针</h3>
                                 </div>
-                                <div v-else>
-                                    <div class="ui header">
-                                        <h3>{{currentUid}}: {{currentUsername}} 的记录数据</h3>
+                                <div class="ui stacked segment">
+                                    <div id="compass">
+                                        <div id="needle"></div>
                                     </div>
                                     <table class="ui celled table">
                                         <thead>
                                             <tr>
-                                                <th>时间</th>
-                                                <th>体温</th>
-                                                <th>地点</th>
+                                                <th>朝向</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr v-for="item in records">
-                                                <td>{{toTimeString(item.timestamp)}}</td>
-                                                <td>{{item.temperature}}</td>
-                                                <td>{{item.location}}</td>
+                                            <tr>
+                                                <td id="heading"></td>
                                             </tr>
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
-                        </div>
+                            <div class="ui sixteen wide column">
+                                <div class="ui header">
+                                    <h3>定位</h3>
+                                </div>
+                                <div class="ui stacked segment">
+                                    <table class="ui celled table">
+                                        <thead>
+                                            <tr>
+                                                <th>经度</th>
+                                                <th>纬度</th>
+                                                <th>海拔(m)</th>
+                                                <th>速度(m/s)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td id="lon"></td>
+                                                <td id="lat"></td>
+                                                <td id="alt"></td>
+                                                <td id="spd"></td>
+                                            </tr>
 
+                                        </tbody>
+                                    </table>
+                                    <div id="map" style="height: 500px;">
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
                     </div>
+
+
                 </div>
             </div>
+
         </div>
     </div>
+
 
     <div class="ui tiny modal" id="global-error-model">
         <div class="ui header">

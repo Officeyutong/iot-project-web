@@ -4,7 +4,8 @@ use actix_web::{web, App, HttpServer};
 use anyhow::{anyhow, bail, Context};
 use flexi_logger::{DeferredNow, Duplicate, FileSpec, Logger, TS_DASHES_BLANK_COLONS_DOT_BLANK};
 use log::{info, Record};
-use state::AppState;
+use parking_lot::Mutex;
+use state::{AppState, CompassHeading, GeolocationData, OrientationData, SimpleXYZ};
 
 use crate::config::Config;
 
@@ -61,6 +62,12 @@ async fn main() -> anyhow::Result<()> {
         base_dir: base_dir.clone(),
         web_dir: base_dir.join("web"),
         config: config.clone(),
+        gyroscope: Arc::new(Mutex::new(SimpleXYZ::default())),
+        acceleration: Arc::new(Mutex::new(SimpleXYZ::default())),
+        orientation: Arc::new(Mutex::new(OrientationData::default())),
+        gravity: Arc::new(Mutex::new(SimpleXYZ::default())),
+        geolocation: Arc::new(Mutex::new(GeolocationData::default())),
+        compass: Arc::new(Mutex::new(CompassHeading::default())),
     });
     {
         let web_dir = app_state.web_dir.as_path();
@@ -83,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
                 r#"%a,%{r}a "%r" %s %b %T"#,
             ))
             .service(route::index)
+            .service(route::compass_png)
             .service(route::api::make_scope())
     })
     .bind(bind)?

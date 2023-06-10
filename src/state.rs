@@ -27,7 +27,7 @@ pub struct SimpleXYZ {
     pub x: f64,
     pub y: f64,
     pub z: f64,
-    pub timestamp: i64,
+    pub timestamp: f64,
 }
 
 impl SimpleXYZ {
@@ -41,7 +41,7 @@ impl SimpleXYZ {
     pub fn update_with_delta(&mut self, new: &SimpleXYZ) {
         let SimpleXYZ { x, y, z, timestamp } = new;
 
-        if self.timestamp == 0 {
+        if self.timestamp == 0.0 {
             self.timestamp = *timestamp;
         } else {
             // Needs updating
@@ -78,7 +78,7 @@ pub struct GeolocationCoords {
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct GeolocationData {
     coords: GeolocationCoords,
-    timestamp: i64,
+    timestamp: f64,
 }
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct CompassHeading {
